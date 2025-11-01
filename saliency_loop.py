@@ -1,4 +1,11 @@
+
 # saliency_loop.py
+from saliency_map import gradcam_to_pli
+out_dir = "results/saliency_maps"
+pli_dir = "results/pli_maps"
+os.makedirs(pli_dir, exist_ok=True)
+
+
 import os
 import torch
 from PIL import Image
@@ -109,6 +116,22 @@ for img_file in os.listdir(img_folder):
     save_heatmap = os.path.join(out_dir, img_file.replace(".png", "_saliency.png"))
     plt.imsave(save_heatmap, saliency, cmap="hot")
     print("Saved saliency heatmap to:", save_heatmap)
+
+        # ---- Convert to PLI using fuzzy logic ----
+    try:
+        pli_map = gradcam_to_pli(saliency)
+        pli_save_path = os.path.join(pli_dir, img_file.replace(".png", "_pli.png"))
+        plt.imsave(pli_save_path, pli_map, cmap="Reds")
+        print("Saved PLI map to:", pli_save_path)
+
+        # Optional: overlay visualization
+        pli_overlay = np.clip(orig * 0.5 + np.stack([pli_map]*3, axis=2) * 0.5, 0, 1)
+        pli_overlay_path = os.path.join(pli_dir, img_file.replace(".png", "_pli_overlay.png"))
+        plt.imsave(pli_overlay_path, pli_overlay)
+        print("Saved PLI overlay to:", pli_overlay_path)
+    except Exception as e:
+        print("Failed to compute PLI map:", e)
+
 
     # Save overlay on original image
     orig = np.array(raw_image.resize(saliency.shape[::-1])) / 255.0
