@@ -116,7 +116,7 @@ saliency_np = saliency.detach().cpu().numpy()
 # Generate PLI map using fuzzy logic
 pli_map = gradcam_to_pli(saliency_np)
 
-pip install scikit-fuzzy
+
 
 # Visualize PLI
 plt.imshow(pli_map, cmap="Reds")
