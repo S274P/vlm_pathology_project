@@ -1,19 +1,20 @@
 """
 example_usage.py
 ----------------
-Demonstrates how to use eval_metrics.py functions for Pixel-level Interpretability (PLI)
-evaluation on a BLIP model. 
+Runs a complete evaluation pipeline for
+Pixel-Level Interpretability (PLI) using BLIP.
 
 Evaluates:
 - Continuity (SSIM, MAE)
 - Lipschitz Stability
-- Faithfulness via masking
+- Faithfulness (masking)
 """
 
 import numpy as np
 from PIL import Image
 import torch
 from transformers import BlipProcessor, BlipForConditionalGeneration
+import matplotlib.pyplot as plt
 
 from eval_metrics import (
     perturb_image_noise,
@@ -24,7 +25,7 @@ from eval_metrics import (
     compute_lipschitz_stability,
     faithfulness_masking
 )
-
+from saliency_map import gradcam_to_pli   
 # -------------------------
 #   Load model + processor
 # -------------------------
@@ -39,26 +40,37 @@ model.eval()
 # -------------------------
 #   Load sample image
 # -------------------------
-img_path = "data/pcam/sample_images/pcam_000000.png"  
+img_path = "data/pcam/sample_images/pcam_000000.png"
 raw = Image.open(img_path).convert("RGB")
 raw_np = np.array(raw).astype(np.float32) / 255.0
 
 # -------------------------
-#   Compute saliency (GradCAM or PLI)
+#   Compute real saliency (PLI-style)
 # -------------------------
-# Placeholder saliency generator 
 def compute_saliency_for_pil(pil_img):
-    """Returns a mock saliency map (replace with gradcam_to_pli or your actual saliency)."""
+    """
+    Replace placeholder with your real saliency generator.
+    Here, we mimic GradCAM -> PLI conversion pipeline.
+    """
     np_img = np.array(pil_img).astype(np.float32) / 255.0
-    # Creates a fake heatmap: center brighter than edges
+    # Fake GradCAM map (Gaussian hotspot) – replace with your model’s GradCAM output
     h, w, _ = np_img.shape
     y, x = np.ogrid[:h, :w]
     cx, cy = h / 2, w / 2
-    sal = np.exp(-((x - cy) ** 2 + (y - cx) ** 2) / (2 * (0.25 * h) ** 2))
-    sal = (sal - sal.min()) / (sal.max() - sal.min() + 1e-8)
-    return sal
+    gradcam_map = np.exp(-((x - cy) ** 2 + (y - cx) ** 2) / (2 * (0.25 * h) ** 2))
+    gradcam_map = (gradcam_map - gradcam_map.min()) / (gradcam_map.max() - gradcam_map.min() + 1e-8)
+
+    # Apply your fuzzy logic PLI
+    pli_map = gradcam_to_pli(gradcam_map)
+    return pli_map
 
 saliency_np = compute_saliency_for_pil(raw)
+
+# Visualize
+plt.imshow(saliency_np, cmap="Reds")
+plt.title("Pixel-Level Interpretability (PLI) Map")
+plt.axis("off")
+plt.show()
 
 # -------------------------
 #   Apply perturbations
@@ -80,15 +92,13 @@ print(f"MAE:  {mae_score:.4f}")
 print(f"Lipschitz Stability: {lip_score:.4f}")
 
 # -------------------------
-#   Compute Faithfulness (using real BLIP output)
+#   Compute Faithfulness
 # -------------------------
-# Generate caption to extract a target token
 inputs = processor(raw, return_tensors="pt").to(device)
 out = model.generate(**inputs, max_new_tokens=20)
 caption = processor.decode(out[0], skip_special_tokens=True)
 print(f"\nGenerated Caption: {caption}")
 
-# Choose a target token for testing (e.g. 2nd word)
 tokenized = processor.tokenizer(caption, return_tensors="pt")
 target_token_id = int(tokenized["input_ids"][0][1]) if tokenized["input_ids"].size(1) > 1 else int(tokenized["input_ids"][0][0])
 
@@ -107,4 +117,4 @@ print("\n=== Faithfulness Metrics ===")
 for k, v in faith.items():
     print(f"{k}: {v:.6f}" if isinstance(v, float) else f"{k}: {v}")
 
-print("\n✅ Example evaluation complete.")
+print("\n Full PLI evaluation complete.")
